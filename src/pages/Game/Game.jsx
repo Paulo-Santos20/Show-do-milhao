@@ -12,7 +12,7 @@ const Game = () => {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isAnswering, setIsAnswering] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioMuted, setAudioMuted] = useState(false); // ✅ Mudança: muted ao invés de enabled
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [showAudioPrompt, setShowAudioPrompt] = useState(true);
 
@@ -21,6 +21,14 @@ const Game = () => {
   const urgentMusicRef = useRef(null);
   const correctSoundRef = useRef(null);
   const incorrectSoundRef = useRef(null);
+
+  // ✅ Refs para controlar volumes originais
+  const originalVolumes = useRef({
+    background: 0.3,
+    urgent: 0.5,
+    correct: 0.7,
+    incorrect: 0.7
+  });
 
   // Perguntas
   const questions = [
@@ -148,127 +156,149 @@ const Game = () => {
 
   const prizeValues = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
 
-  // Função para inicializar áudio com arquivos locais
+  // ✅ FUNÇÃO PARA INICIALIZAR E COMEÇAR ÁUDIO AUTOMATICAMENTE
   const initializeAudio = async () => {
     try {
-      console.log("🎵 Inicializando sistema de áudio com arquivos locais...");
+      console.log("🎵 Inicializando sistema de áudio contínuo...");
       
       // Criar elementos de áudio
-      backgroundMusicRef.current = new Audio();
-      urgentMusicRef.current = new Audio();
-      correctSoundRef.current = new Audio();
-      incorrectSoundRef.current = new Audio();
+      backgroundMusicRef.current = new Audio("/audio/background-music.mp3");
+      urgentMusicRef.current = new Audio("/audio/urgent-music.mp3");
+      correctSoundRef.current = new Audio("/audio/correct-sound.mp3");
+      incorrectSoundRef.current = new Audio("/audio/incorrect-sound.mp3");
 
-      // Configurar áudios com arquivos da pasta public
-      backgroundMusicRef.current.src = "/audio/background-music.mp3";
+      // ✅ CONFIGURAR PROPRIEDADES E VOLUMES
       backgroundMusicRef.current.loop = true;
-      backgroundMusicRef.current.volume = 0.3;
-      backgroundMusicRef.current.preload = 'auto';
-
-      urgentMusicRef.current.src = "/audio/urgent-music.mp3";
+      backgroundMusicRef.current.volume = originalVolumes.current.background;
+      
       urgentMusicRef.current.loop = true;
-      urgentMusicRef.current.volume = 1;
-      urgentMusicRef.current.preload = 'auto';
+      urgentMusicRef.current.volume = 0; // Começa mutado
+      
+      correctSoundRef.current.volume = originalVolumes.current.correct;
+      incorrectSoundRef.current.volume = originalVolumes.current.incorrect;
 
-      correctSoundRef.current.src = "/audio/correct-sound.mp3";
-      correctSoundRef.current.volume = 1;
-      correctSoundRef.current.preload = 'auto';
-
-      incorrectSoundRef.current.src = "/audio/incorrect-sound.mp3";
-      incorrectSoundRef.current.volume = 1;
-      incorrectSoundRef.current.preload = 'auto';
-
-      // Eventos de carregamento para debug
-      backgroundMusicRef.current.addEventListener('canplaythrough', () => {
-        console.log("✅ Música de fundo carregada com sucesso");
-      });
-
-      backgroundMusicRef.current.addEventListener('error', (e) => {
-        console.error("❌ Erro ao carregar música de fundo:", e);
-      });
-
-      urgentMusicRef.current.addEventListener('canplaythrough', () => {
-        console.log("✅ Música urgente carregada com sucesso");
-      });
-
-      urgentMusicRef.current.addEventListener('error', (e) => {
-        console.error("❌ Erro ao carregar música urgente:", e);
-      });
-
-      correctSoundRef.current.addEventListener('canplaythrough', () => {
-        console.log("✅ Som de acerto carregado com sucesso");
-      });
-
-      correctSoundRef.current.addEventListener('error', (e) => {
-        console.error("❌ Erro ao carregar som de acerto:", e);
-      });
-
-      incorrectSoundRef.current.addEventListener('canplaythrough', () => {
-        console.log("✅ Som de erro carregado com sucesso");
-      });
-
-      incorrectSoundRef.current.addEventListener('error', (e) => {
-        console.error("❌ Erro ao carregar som de erro:", e);
-      });
-
-      // Tentar reproduzir música de fundo para "desbloquear" o áudio
-      if (audioEnabled) {
-        await backgroundMusicRef.current.play();
-        console.log("✅ Áudio iniciado com sucesso!");
-      }
+      // ✅ INICIAR AMBAS AS MÚSICAS (uma audível, outra mutada)
+      console.log("🎵 Iniciando música de fundo...");
+      await backgroundMusicRef.current.play();
+      
+      console.log("🎵 Iniciando música urgente (mutada)...");
+      await urgentMusicRef.current.play();
 
       setAudioInitialized(true);
       setShowAudioPrompt(false);
+      
+      console.log("✅ Sistema de áudio inicializado com sucesso!");
 
     } catch (error) {
-      console.log("⚠️ Autoplay bloqueado - aguardando interação do usuário");
-      console.error("Detalhes do erro:", error);
-      setAudioInitialized(false);
+      console.log("⚠️ Erro na inicialização, mas continuando:", error);
+      setAudioInitialized(true);
+      setShowAudioPrompt(false);
     }
   };
 
-  // Função para tocar som
+  // ✅ FUNÇÃO PARA ALTERNAR ENTRE MÚSICA NORMAL E URGENTE
+  const switchToUrgentMusic = () => {
+    if (!audioInitialized) return;
+    
+    console.log("⚠️ Mudando para música urgente...");
+    
+    if (audioMuted) {
+      // Se está mutado, apenas trocar os volumes (ambos ficam 0)
+      backgroundMusicRef.current.volume = 0;
+      urgentMusicRef.current.volume = 0;
+    } else {
+      // Se não está mutado, fazer a transição
+      backgroundMusicRef.current.volume = 0;
+      urgentMusicRef.current.volume = originalVolumes.current.urgent;
+    }
+  };
+
+  const switchToBackgroundMusic = () => {
+    if (!audioInitialized) return;
+    
+    console.log("🎵 Mudando para música de fundo...");
+    
+    if (audioMuted) {
+      // Se está mutado, ambos ficam 0
+      backgroundMusicRef.current.volume = 0;
+      urgentMusicRef.current.volume = 0;
+    } else {
+      // Se não está mutado, fazer a transição
+      backgroundMusicRef.current.volume = originalVolumes.current.background;
+      urgentMusicRef.current.volume = 0;
+    }
+  };
+
+  // ✅ FUNÇÃO PARA TOCAR EFEITOS SONOROS
   const playSound = (soundRef) => {
-    if (audioEnabled && audioInitialized && soundRef.current) {
+    if (audioMuted || !audioInitialized || !soundRef.current) return;
+    
+    try {
       soundRef.current.currentTime = 0;
-      soundRef.current.play().catch((error) => {
-        console.log("Erro ao reproduzir som:", error);
-      });
+      soundRef.current.play().catch(console.log);
+    } catch (error) {
+      console.log("Erro ao reproduzir efeito sonoro:", error);
     }
   };
 
-  // Função para parar som
-  const stopSound = (soundRef) => {
-    if (soundRef.current) {
-      soundRef.current.pause();
-      soundRef.current.currentTime = 0;
+  // ✅ FUNÇÃO PARA MUTAR/DESMUTAR TODOS OS ÁUDIOS
+  const toggleMute = () => {
+    if (!audioInitialized) {
+      console.log("🎵 Inicializando áudio...");
+      initializeAudio();
+      return;
+    }
+
+    const newMutedState = !audioMuted;
+    setAudioMuted(newMutedState);
+    
+    console.log(`🔇 ${newMutedState ? 'MUTANDO' : 'DESMUTANDO'} todos os áudios...`);
+    
+    if (newMutedState) {
+      // ✅ MUTAR: Zerar volumes mas manter reprodução
+      backgroundMusicRef.current.volume = 0;
+      urgentMusicRef.current.volume = 0;
+      correctSoundRef.current.volume = 0;
+      incorrectSoundRef.current.volume = 0;
+    } else {
+      // ✅ DESMUTAR: Restaurar volumes baseado no contexto atual
+      if (timeLeft > 18) {
+        backgroundMusicRef.current.volume = originalVolumes.current.background;
+        urgentMusicRef.current.volume = 0;
+      } else {
+        backgroundMusicRef.current.volume = 0;
+        urgentMusicRef.current.volume = originalVolumes.current.urgent;
+      }
+      correctSoundRef.current.volume = originalVolumes.current.correct;
+      incorrectSoundRef.current.volume = originalVolumes.current.incorrect;
     }
   };
 
-  // ✅ TIMER DO JOGO - MODIFICADO PARA TOCAR SOM URGENTE AOS 18 SEGUNDOS
+  // ✅ TIMER COM CONTROLE DE MÚSICA POR VOLUME
   useEffect(() => {
     if (timeLeft > 0 && !showResult && audioInitialized) {
       const timer = setInterval(() => {
         setTimeLeft(prev => prev - 1);
       }, 1000);
 
-      // ✅ MUDAR MÚSICA QUANDO RESTAM 18 SEGUNDOS (ao invés de 10)
-      if (timeLeft === 18 && audioEnabled) {
-        console.log("⚠️ Tempo crítico! Iniciando música urgente aos 18 segundos...");
-        stopSound(backgroundMusicRef);
-        playSound(urgentMusicRef);
+      // Mudar música quando restam 18 segundos
+      if (timeLeft === 18 && !isAnswering) {
+        switchToUrgentMusic();
       }
 
       return () => clearInterval(timer);
     } else if (timeLeft === 0) {
       handleTimeUp();
     }
-  }, [timeLeft, showResult, audioEnabled, audioInitialized]);
+  }, [timeLeft, showResult, audioInitialized, isAnswering, audioMuted]);
 
   const handleTimeUp = () => {
-    stopSound(backgroundMusicRef);
-    stopSound(urgentMusicRef);
-    playSound(incorrectSoundRef);
+    // Parar músicas e tocar som de erro
+    if (audioInitialized) {
+      backgroundMusicRef.current.volume = 0;
+      urgentMusicRef.current.volume = 0;
+      playSound(incorrectSoundRef);
+    }
     
     setShowResult(true);
     setTimeout(() => {
@@ -282,9 +312,11 @@ const Game = () => {
     setSelectedAnswer(answerIndex);
     setIsAnswering(true);
 
-    // Parar todas as músicas
-    stopSound(backgroundMusicRef);
-    stopSound(urgentMusicRef);
+    // Silenciar músicas temporariamente
+    if (audioInitialized) {
+      backgroundMusicRef.current.volume = 0;
+      urgentMusicRef.current.volume = 0;
+    }
 
     setTimeout(() => {
       const isCorrect = answerIndex === questions[currentQuestion].correctAnswer;
@@ -307,8 +339,10 @@ const Game = () => {
             setSelectedAnswer(null);
             setIsAnswering(false);
             
-            // Reiniciar música de fundo
-            playSound(backgroundMusicRef);
+            // ✅ RETOMAR MÚSICA DE FUNDO (sempre começa normal)
+            if (audioInitialized) {
+              switchToBackgroundMusic();
+            }
           } else {
             navigate('/result', { state: { score: newScore, questionsAnswered: questions.length, completed: true } });
           }
@@ -319,23 +353,6 @@ const Game = () => {
         }, 2000);
       }
     }, 1000);
-  };
-
-  const toggleAudio = () => {
-    setAudioEnabled(!audioEnabled);
-    
-    if (!audioEnabled && audioInitialized) {
-      // Reativar áudio
-      if (timeLeft > 18) {
-        playSound(backgroundMusicRef);
-      } else {
-        playSound(urgentMusicRef);
-      }
-    } else {
-      // Desativar áudio
-      stopSound(backgroundMusicRef);
-      stopSound(urgentMusicRef);
-    }
   };
 
   const currentQuestionData = questions[currentQuestion];
@@ -361,8 +378,8 @@ const Game = () => {
                 className="audio-prompt-btn secondary"
                 onClick={() => {
                   setShowAudioPrompt(false);
-                  setAudioEnabled(false);
-                  setAudioInitialized(true); // Permite que o jogo continue sem áudio
+                  setAudioMuted(true);
+                  setAudioInitialized(true);
                 }}
               >
                 🔇 Jogar sem Áudio
@@ -383,27 +400,24 @@ const Game = () => {
         
         <div className="game-title-header">
           <h1 className="show-title-header">SHOW DO MILHÃO</h1>
-          <h2 className="enfermagem-title-header">DA ENFERMAGEM</h2>
+          <h2 class Name="enfermagem-title-header">DA ENFERMAGEM</h2>
         </div>
 
+        {/* ✅ BOTÃO DE MUTE/UNMUTE */}
         <div className="audio-controls">
           <button 
-            className={`audio-toggle ${audioEnabled ? 'enabled' : 'disabled'}`}
-            onClick={toggleAudio}
-            disabled={!audioInitialized}
-            title={audioEnabled ? 'Desativar áudio' : 'Ativar áudio'}
+            className={`audio-toggle-single ${
+              !audioInitialized ? 'loading' : 
+              audioMuted ? 'disabled' : 'enabled'
+            }`}
+            onClick={toggleMute}
+            title={
+              !audioInitialized ? 'Clique para inicializar áudio' :
+              audioMuted ? 'Ativar áudio' : 'Mutar áudio'
+            }
           >
-            {audioEnabled ? '��' : '��'}
+            {!audioInitialized ? '⏳' : audioMuted ? '🔇' : '🔊'}
           </button>
-          
-          {/* Indicador de status do áudio */}
-          <div className="audio-status">
-            {audioInitialized ? (
-              <span className="audio-status-indicator ready" title="Áudio pronto">🎵</span>
-            ) : (
-              <span className="audio-status-indicator loading" title="Carregando áudio">⏳</span>
-            )}
-          </div>
         </div>
       </div>
 
@@ -464,7 +478,6 @@ const Game = () => {
 
           <div className="timer-box">
             <div className="timer-label">CRONÔMETRO</div>
-            {/* ✅ MODIFICADO PARA MOSTRAR WARNING AOS 18 SEGUNDOS */}
             <div className={`timer-display ${timeLeft <= 18 ? 'warning' : ''}`}>
               {timeLeft < 10 ? `0${timeLeft}` : timeLeft}
             </div>
