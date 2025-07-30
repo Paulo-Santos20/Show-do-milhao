@@ -167,15 +167,15 @@ const Game = () => {
 
       urgentMusicRef.current.src = "/audio/urgent-music.mp3";
       urgentMusicRef.current.loop = true;
-      urgentMusicRef.current.volume = 0.9;
+      urgentMusicRef.current.volume = 1;
       urgentMusicRef.current.preload = 'auto';
 
       correctSoundRef.current.src = "/audio/correct-sound.mp3";
-      correctSoundRef.current.volume = 0.7;
+      correctSoundRef.current.volume = 1;
       correctSoundRef.current.preload = 'auto';
 
       incorrectSoundRef.current.src = "/audio/incorrect-sound.mp3";
-      incorrectSoundRef.current.volume = 0.7;
+      incorrectSoundRef.current.volume = 1;
       incorrectSoundRef.current.preload = 'auto';
 
       // Eventos de carregamento para debug
