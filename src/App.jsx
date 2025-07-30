@@ -1,10 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import Game from './pages/Game';
-import Result from './pages/Result';
-import Ranking from './pages/Ranking';
-import About from './pages/About';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Home from './pages/Home/Home';
+import Game from './pages/Game/Game';
+import Result from './pages/Result/Result';
+import Admin from './pages/Admin/Admin';
 import './App.css';
 
 function App() {
@@ -15,8 +14,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/game" element={<Game />} />
           <Route path="/result" element={<Result />} />
-          <Route path="/ranking" element={<Ranking />} />
-          <Route path="/about" element={<About />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </Router>
