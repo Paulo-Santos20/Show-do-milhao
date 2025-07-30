@@ -22,7 +22,7 @@ const Game = () => {
   const correctSoundRef = useRef(null);
   const incorrectSoundRef = useRef(null);
 
-  // Perguntas (mesmo código anterior)
+  // Perguntas
   const questions = [
     {
       id: 1,
@@ -148,43 +148,81 @@ const Game = () => {
 
   const prizeValues = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
 
-  // Função para inicializar áudio após interação do usuário
+  // Função para inicializar áudio com arquivos locais
   const initializeAudio = async () => {
     try {
+      console.log("🎵 Inicializando sistema de áudio com arquivos locais...");
+      
       // Criar elementos de áudio
       backgroundMusicRef.current = new Audio();
       urgentMusicRef.current = new Audio();
       correctSoundRef.current = new Audio();
       incorrectSoundRef.current = new Audio();
 
-      // Configurar áudios com URLs funcionais
-      backgroundMusicRef.current.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjuL0fPTgjMGHm7A7+OZURE=";
-      urgentMusicRef.current.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjuL0fPTgjMGHm7A7+OZURE=";
-      correctSoundRef.current.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjuL0fPTgjMGHm7A7+OZURE=";
-      incorrectSoundRef.current.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjuL0fPTgjMGHm7A7+OZURE=";
-
-      // Configurar propriedades
+      // Configurar áudios com arquivos da pasta public
+      backgroundMusicRef.current.src = "/audio/background-music.mp3";
       backgroundMusicRef.current.loop = true;
       backgroundMusicRef.current.volume = 0.3;
-      urgentMusicRef.current.loop = true;
-      urgentMusicRef.current.volume = 0.5;
-      correctSoundRef.current.volume = 0.7;
-      incorrectSoundRef.current.volume = 0.7;
+      backgroundMusicRef.current.preload = 'auto';
 
-      // Tentar reproduzir um som silencioso para "desbloquear" o áudio
-      await backgroundMusicRef.current.play();
-      backgroundMusicRef.current.pause();
+      urgentMusicRef.current.src = "/audio/urgent-music.mp3";
+      urgentMusicRef.current.loop = true;
+      urgentMusicRef.current.volume = 0.9;
+      urgentMusicRef.current.preload = 'auto';
+
+      correctSoundRef.current.src = "/audio/correct-sound.mp3";
+      correctSoundRef.current.volume = 0.7;
+      correctSoundRef.current.preload = 'auto';
+
+      incorrectSoundRef.current.src = "/audio/incorrect-sound.mp3";
+      incorrectSoundRef.current.volume = 0.7;
+      incorrectSoundRef.current.preload = 'auto';
+
+      // Eventos de carregamento para debug
+      backgroundMusicRef.current.addEventListener('canplaythrough', () => {
+        console.log("✅ Música de fundo carregada com sucesso");
+      });
+
+      backgroundMusicRef.current.addEventListener('error', (e) => {
+        console.error("❌ Erro ao carregar música de fundo:", e);
+      });
+
+      urgentMusicRef.current.addEventListener('canplaythrough', () => {
+        console.log("✅ Música urgente carregada com sucesso");
+      });
+
+      urgentMusicRef.current.addEventListener('error', (e) => {
+        console.error("❌ Erro ao carregar música urgente:", e);
+      });
+
+      correctSoundRef.current.addEventListener('canplaythrough', () => {
+        console.log("✅ Som de acerto carregado com sucesso");
+      });
+
+      correctSoundRef.current.addEventListener('error', (e) => {
+        console.error("❌ Erro ao carregar som de acerto:", e);
+      });
+
+      incorrectSoundRef.current.addEventListener('canplaythrough', () => {
+        console.log("✅ Som de erro carregado com sucesso");
+      });
+
+      incorrectSoundRef.current.addEventListener('error', (e) => {
+        console.error("❌ Erro ao carregar som de erro:", e);
+      });
+
+      // Tentar reproduzir música de fundo para "desbloquear" o áudio
+      if (audioEnabled) {
+        await backgroundMusicRef.current.play();
+        console.log("✅ Áudio iniciado com sucesso!");
+      }
 
       setAudioInitialized(true);
       setShowAudioPrompt(false);
 
-      // Iniciar música de fundo
-      if (audioEnabled) {
-        backgroundMusicRef.current.play().catch(console.log);
-      }
-
     } catch (error) {
-      console.log("Erro ao inicializar áudio:", error);
+      console.log("⚠️ Autoplay bloqueado - aguardando interação do usuário");
+      console.error("Detalhes do erro:", error);
       setAudioInitialized(false);
     }
   };
@@ -193,7 +231,9 @@ const Game = () => {
   const playSound = (soundRef) => {
     if (audioEnabled && audioInitialized && soundRef.current) {
       soundRef.current.currentTime = 0;
-      soundRef.current.play().catch(console.log);
+      soundRef.current.play().catch((error) => {
+        console.log("Erro ao reproduzir som:", error);
+      });
     }
   };
 
@@ -205,15 +245,16 @@ const Game = () => {
     }
   };
 
-  // Timer do jogo
+  // ✅ TIMER DO JOGO - MODIFICADO PARA TOCAR SOM URGENTE AOS 18 SEGUNDOS
   useEffect(() => {
     if (timeLeft > 0 && !showResult && audioInitialized) {
       const timer = setInterval(() => {
         setTimeLeft(prev => prev - 1);
       }, 1000);
 
-      // Mudar música quando restam 10 segundos
-      if (timeLeft === 10 && audioEnabled) {
+      // ✅ MUDAR MÚSICA QUANDO RESTAM 18 SEGUNDOS (ao invés de 10)
+      if (timeLeft === 18 && audioEnabled) {
+        console.log("⚠️ Tempo crítico! Iniciando música urgente aos 18 segundos...");
         stopSound(backgroundMusicRef);
         playSound(urgentMusicRef);
       }
@@ -285,7 +326,7 @@ const Game = () => {
     
     if (!audioEnabled && audioInitialized) {
       // Reativar áudio
-      if (timeLeft > 10) {
+      if (timeLeft > 18) {
         playSound(backgroundMusicRef);
       } else {
         playSound(urgentMusicRef);
@@ -321,6 +362,7 @@ const Game = () => {
                 onClick={() => {
                   setShowAudioPrompt(false);
                   setAudioEnabled(false);
+                  setAudioInitialized(true); // Permite que o jogo continue sem áudio
                 }}
               >
                 🔇 Jogar sem Áudio
@@ -346,31 +388,32 @@ const Game = () => {
 
         <div className="audio-controls">
           <button 
-            className="audio-toggle" 
+            className={`audio-toggle ${audioEnabled ? 'enabled' : 'disabled'}`}
             onClick={toggleAudio}
             disabled={!audioInitialized}
+            title={audioEnabled ? 'Desativar áudio' : 'Ativar áudio'}
           >
-            {audioEnabled ? '🔊' : '🔇'}
+            {audioEnabled ? '��' : '��'}
           </button>
-          {!audioInitialized && (
-            <button 
-              className="audio-init" 
-              onClick={initializeAudio}
-              title="Clique para ativar o áudio"
-            >
-              🎵
-            </button>
-          )}
+          
+          {/* Indicador de status do áudio */}
+          <div className="audio-status">
+            {audioInitialized ? (
+              <span className="audio-status-indicator ready" title="Áudio pronto">🎵</span>
+            ) : (
+              <span className="audio-status-indicator loading" title="Carregando áudio">⏳</span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Resto do código permanece igual... */}
+      {/* Conteúdo Principal */}
       <div className="game-main-content">
         <div className="game-content-left">
           <div className="question-box">
             <div className="question-header">
               <span className="question-number">Pergunta {currentQuestion + 1}/10</span>
-              <span className="question-value">R\$ {currentQuestionData?.value.toLocaleString('pt-BR')}</span>
+              <span className="question-value">R$ {currentQuestionData?.value.toLocaleString('pt-BR')}</span>
             </div>
             
             <h2 className="question-text">{currentQuestionData?.question}</h2>
@@ -415,13 +458,14 @@ const Game = () => {
           <div className="score-box">
             <div className="score-label">PRÊMIO ATUAL</div>
             <div className="score-value">
-              R\$ {score.toLocaleString('pt-BR')}
+              R$ {score.toLocaleString('pt-BR')}
             </div>
           </div>
 
           <div className="timer-box">
             <div className="timer-label">CRONÔMETRO</div>
-            <div className={`timer-display ${timeLeft <= 10 ? 'warning' : ''}`}>
+            {/* ✅ MODIFICADO PARA MOSTRAR WARNING AOS 18 SEGUNDOS */}
+            <div className={`timer-display ${timeLeft <= 18 ? 'warning' : ''}`}>
               {timeLeft < 10 ? `0${timeLeft}` : timeLeft}
             </div>
           </div>
@@ -438,7 +482,7 @@ const Game = () => {
                 }`}
               >
                 <span className="ladder-number">{10 - index}</span>
-                <span className="ladder-value">R\$ {value.toLocaleString('pt-BR')}</span>
+                <span className="ladder-value">R$ {value.toLocaleString('pt-BR')}</span>
               </div>
             ))}
           </div>

@@ -776,4 +776,85 @@
     width: 100%;
     max-width: 250px;
   }
+}/* Controles de Áudio Aprimorados */
+.audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-toggle {
+  background: rgba(255, 215, 0, 0.2);
+  border: 2px solid #FFD700;
+  color: #FFD700;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.audio-toggle.enabled {
+  background: #FFD700;
+  color: #1E3A8A;
+}
+
+.audio-toggle.disabled {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: #DC2626;
+  color: #DC2626;
+}
+
+.audio-toggle:hover {
+  transform: scale(1.1);
+}
+
+/* Indicador de Status do Áudio */
+.audio-status {
+  display: flex;
+  align-items: center;
+}
+
+.audio-status-indicator {
+  font-size: 1rem;
+  padding: 5px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.audio-status-indicator.ready {
+  animation: audioReady 2s ease-in-out infinite;
+}
+
+.audio-status-indicator.loading {
+  animation: audioLoading 1s linear infinite;
+}
+
+@keyframes audioReady {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% { 
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes audioLoading {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .audio-controls {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .audio-toggle {
+    padding: 8px 12px;
+    font-size: 1rem;
+  }
 }
