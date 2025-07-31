@@ -1,29 +1,93 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { initializeDefaultQuestions } from '../../utils/defaultQuestions';
 import './Home.css';
 
 const Home = () => {
   const navigate = useNavigate();
   const [showInstructions, setShowInstructions] = useState(false);
   const [questionsCount, setQuestionsCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Verificar quantas perguntas estão cadastradas
+  // ✅ INICIALIZAR PERGUNTAS AUTOMATICAMENTE
   useEffect(() => {
-    const savedQuestions = localStorage.getItem('quiz-questions');
-    if (savedQuestions) {
-      const questions = JSON.parse(savedQuestions);
-      setQuestionsCount(questions.length);
-    }
+    const initializeQuestions = async () => {
+      try {
+        console.log('🚀 Inicializando aplicação...');
+        setIsLoading(true);
+        
+        // Inicializar perguntas padrão se necessário
+        const questions = initializeDefaultQuestions();
+        setQuestionsCount(questions.length);
+        
+        console.log('✅ Aplicação inicializada com', questions.length, 'perguntas');
+      } catch (error) {
+        console.error('❌ Erro na inicialização:', error);
+        setQuestionsCount(0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeQuestions();
   }, []);
+
+  // Monitorar mudanças no localStorage (quando admin faz alterações)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedQuestions = localStorage.getItem('quiz-questions');
+      if (savedQuestions) {
+        const questions = JSON.parse(savedQuestions);
+        setQuestionsCount(questions.length);
+        console.log('🔄 Perguntas atualizadas:', questions.length);
+      }
+    };
+
+    // Escutar mudanças no localStorage
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Verificar periodicamente (para mudanças na mesma aba)
+    const interval = setInterval(() => {
+      const savedQuestions = localStorage.getItem('quiz-questions');
+      if (savedQuestions) {
+        const questions = JSON.parse(savedQuestions);
+        if (questions.length !== questionsCount) {
+          setQuestionsCount(questions.length);
+        }
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [questionsCount]);
 
   const handleStartGame = () => {
     if (questionsCount === 0) {
-      alert('Nenhuma pergunta cadastrada! Configure as perguntas no painel administrativo primeiro.');
-      navigate('/admin');
+      alert('Erro ao carregar perguntas! Tente recarregar a página.');
       return;
     }
     navigate('/game');
   };
+
+  // Tela de loading
+  if (isLoading) {
+    return (
+      <div className="home-container">
+        <div className="loading-screen">
+          <div className="loading-content">
+            <h1 className="loading-title">SHOW DO MILHÃO</h1>
+            <h2 className="loading-subtitle">DA ENFERMAGEM</h2>
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+            </div>
+            <p className="loading-text">Carregando perguntas...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="home-container">
@@ -57,7 +121,7 @@ const Home = () => {
           </p>
         </div>
 
-        {/* ✅ BOTÕES DE AÇÃO MOVIDOS PARA CIMA */}
+        {/* Botões de Ação */}
         <div className="action-buttons">
           <button 
             className="start-button" 
@@ -75,7 +139,7 @@ const Home = () => {
           </button>
         </div>
 
-        {/* ✅ BANNERS DE INFORMAÇÕES (REORGANIZADOS) */}
+        {/* Banners de Informações */}
         <div className="game-info">
           <div className="info-card">
             <div className="info-icon">🎯</div>
@@ -99,11 +163,11 @@ const Home = () => {
         {/* Status das perguntas */}
         <div className="questions-status">
           <p className="questions-count">
-            📊 Perguntas cadastradas: <strong>{questionsCount}/10</strong>
+            📊 Perguntas disponíveis: <strong>{questionsCount}/10</strong>
           </p>
-          {questionsCount === 0 && (
-            <p className="no-questions-warning">
-              ⚠️ Configure as perguntas no painel administrativo para começar a jogar!
+          {questionsCount === 10 && (
+            <p className="questions-ready">
+              ✅ Todas as perguntas estão prontas! Boa sorte!
             </p>
           )}
         </div>

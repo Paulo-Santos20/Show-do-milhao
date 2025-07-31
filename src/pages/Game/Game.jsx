@@ -1,292 +1,242 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { initializeDefaultQuestions } from '../../utils/defaultQuestions';
+import useAudio from '../../hooks/useAudio';
 import './Game.css';
 
 const Game = () => {
   const navigate = useNavigate();
-
+  
+  // Hook de áudio
+  const {
+    isMuted,
+    audioEnabled,
+    showAudioPrompt,
+    isBackgroundPlaying,
+    enableAudio,
+    disableAudio,
+    toggleMute,
+    playBackgroundMusic,
+    stopBackgroundMusic,
+    playCorrectSound,
+    playIncorrectSound,
+    playTickSound,
+    playTimeWarningSound,
+    setShowAudioPrompt
+  } = useAudio();
+  
   // Estados do jogo
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [score, setScore] = useState(1000);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [isAnswering, setIsAnswering] = useState(false);
-  const [showResult, setShowResult] = useState(false);
-  const [audioMuted, setAudioMuted] = useState(false);
-  const [audioInitialized, setAudioInitialized] = useState(false);
-  const [showAudioPrompt, setShowAudioPrompt] = useState(true);
   const [questions, setQuestions] = useState([]);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [showResult, setShowResult] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [gameEnded, setGameEnded] = useState(false);
+  const [finalPrize, setFinalPrize] = useState(0);
+  const [isCorrect, setIsCorrect] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [gameStarted, setGameStarted] = useState(false);
 
-  // Refs para áudio
-  const backgroundMusicRef = useRef(null);
-  const urgentMusicRef = useRef(null);
-  const correctSoundRef = useRef(null);
-  const incorrectSoundRef = useRef(null);
-
-  // Refs para controlar volumes originais
-  const originalVolumes = useRef({
-    background: 0.3,
-    urgent: 0.5,
-    correct: 0.7,
-    incorrect: 0.7
-  });
-
-  // ✅ CARREGAR PERGUNTAS DO ADMIN
+  // ✅ CARREGAR PERGUNTAS COM INICIALIZAÇÃO AUTOMÁTICA
   useEffect(() => {
-    const savedQuestions = localStorage.getItem('quiz-questions');
-    if (savedQuestions) {
-      const parsedQuestions = JSON.parse(savedQuestions);
-      if (parsedQuestions.length > 0) {
-        setQuestions(parsedQuestions);
-      } else {
-        // Se não há perguntas, redirecionar para admin
-        alert('Nenhuma pergunta encontrada! Redirecionando para o painel administrativo.');
-        navigate('/admin');
+    const loadQuestions = () => {
+      try {
+        console.log('🎮 Carregando perguntas para o jogo...');
+        setIsLoading(true);
+        
+        const loadedQuestions = initializeDefaultQuestions();
+        
+        if (loadedQuestions && loadedQuestions.length > 0) {
+          setQuestions(loadedQuestions);
+          console.log('✅ Perguntas carregadas para o jogo:', loadedQuestions.length);
+        } else {
+          console.error('❌ Nenhuma pergunta disponível');
+          alert('Erro ao carregar perguntas! Redirecionando para a página inicial.');
+          navigate('/');
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar perguntas:', error);
+        alert('Erro ao carregar perguntas! Redirecionando para a página inicial.');
+        navigate('/');
+      } finally {
+        setIsLoading(false);
       }
-    } else {
-      // Perguntas padrão se não houver nada salvo
-      setQuestions(getDefaultQuestions());
-    }
+    };
+
+    loadQuestions();
   }, [navigate]);
 
-  // Perguntas padrão (fallback)
-  const getDefaultQuestions = () => [
-    {
-      id: 1,
-      question: "São itens necessários para validar uma prescrição médica:",
-      options: [
-        "Nome do Paciente, nome social, carimbo, horário em que foi prescrito.",
-        "Nome completo do Paciente, nome da medicação, dose, via de administração, frequência e horário, assinatura e carimbo médico (com CRM).",
-        "Nome completo do paciente, nome da medicação, via de administração, horário, carimbo."
-      ],
-      correctAnswer: 1,
-      value: 1000,
-      image: "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop"
-    },
-    {
-      id: 2,
-      question: "Um grupo de medicações em específico exige um maior cuidado em seu manuseio e administração. Esse grupo é denominado de:",
-      options: [
-        "Medicações de Alta Vigilância (MAV).",
-        "Medicações de uso gravitacional.",
-        "Medicações de uso supervisionado (MUS)."
-      ],
-      correctAnswer: 0,
-      value: 2000,
-      image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=400&h=300&fit=crop"
-    }
-    // Adicionar mais perguntas padrão conforme necessário
-  ];
-
-  const prizeValues = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
-
-  // ✅ FUNÇÃO PARA INICIALIZAR E COMEÇAR ÁUDIO AUTOMATICAMENTE
-  const initializeAudio = async () => {
-    try {
-      console.log("🎵 Inicializando sistema de áudio contínuo...");
-
-      // Criar elementos de áudio
-      backgroundMusicRef.current = new Audio("/audio/background-music.mp3");
-      urgentMusicRef.current = new Audio("/audio/urgent-music.mp3");
-      correctSoundRef.current = new Audio("/audio/correct-sound.mp3");
-      incorrectSoundRef.current = new Audio("/audio/incorrect-sound.mp3");
-
-      // ✅ CONFIGURAR PROPRIEDADES E VOLUMES
-      backgroundMusicRef.current.loop = true;
-      backgroundMusicRef.current.volume = originalVolumes.current.background;
-
-      urgentMusicRef.current.loop = true;
-      urgentMusicRef.current.volume = 0; // Começa mutado
-
-      correctSoundRef.current.volume = originalVolumes.current.correct;
-      incorrectSoundRef.current.volume = originalVolumes.current.incorrect;
-
-      // ✅ INICIAR AMBAS AS MÚSICAS (uma audível, outra mutada)
-      console.log("🎵 Iniciando música de fundo...");
-      await backgroundMusicRef.current.play();
-
-      console.log("🎵 Iniciando música urgente (mutada)...");
-      await urgentMusicRef.current.play();
-
-      setAudioInitialized(true);
-      setShowAudioPrompt(false);
-
-      console.log("✅ Sistema de áudio inicializado com sucesso!");
-
-    } catch (error) {
-      console.log("⚠️ Erro na inicialização, mas continuando:", error);
-      setAudioInitialized(true);
-      setShowAudioPrompt(false);
-    }
-  };
-
-  // ✅ FUNÇÃO PARA ALTERNAR ENTRE MÚSICA NORMAL E URGENTE
-  const switchToUrgentMusic = () => {
-    if (!audioInitialized) return;
-
-    console.log("⚠️ Mudando para música urgente...");
-
-    if (audioMuted) {      // Se está mutado, apenas trocar os volumes (ambos ficam 0)
-      backgroundMusicRef.current.volume = 0;
-      urgentMusicRef.current.volume = 0;
-    } else {
-      // Se não está mutado, fazer a transição
-      backgroundMusicRef.current.volume = 0;
-      urgentMusicRef.current.volume = originalVolumes.current.urgent;
-    }
-  };
-
-  const switchToBackgroundMusic = () => {
-    if (!audioInitialized) return;
-
-    console.log("🎵 Mudando para música de fundo...");
-
-    if (audioMuted) {
-      // Se está mutado, ambos ficam 0
-      backgroundMusicRef.current.volume = 0;
-      urgentMusicRef.current.volume = 0;
-    } else {
-      // Se não está mutado, fazer a transição
-      backgroundMusicRef.current.volume = originalVolumes.current.background;
-      urgentMusicRef.current.volume = 0;
-    }
-  };
-
-  // ✅ FUNÇÃO PARA TOCAR EFEITOS SONOROS
-  const playSound = (soundRef) => {
-    if (audioMuted || !audioInitialized || !soundRef.current) return;
-
-    try {
-      soundRef.current.currentTime = 0;
-      soundRef.current.play().catch(console.log);
-    } catch (error) {
-      console.log("Erro ao reproduzir efeito sonoro:", error);
-    }
-  };
-
-  // ✅ FUNÇÃO PARA MUTAR/DESMUTAR TODOS OS ÁUDIOS
-  const toggleMute = () => {
-    if (!audioInitialized) {
-      console.log("🎵 Inicializando áudio...");
-      initializeAudio();
-      return;
-    }
-
-    const newMutedState = !audioMuted;
-    setAudioMuted(newMutedState);
-
-    console.log(`🔇 ${newMutedState ? 'MUTANDO' : 'DESMUTANDO'} todos os áudios...`);
-
-    if (newMutedState) {
-      // ✅ MUTAR: Zerar volumes mas manter reprodução
-      backgroundMusicRef.current.volume = 0;
-      urgentMusicRef.current.volume = 0;
-      correctSoundRef.current.volume = 0;
-      incorrectSoundRef.current.volume = 0;
-    } else {
-      // ✅ DESMUTAR: Restaurar volumes baseado no contexto atual
-      if (timeLeft > 18) {
-        backgroundMusicRef.current.volume = originalVolumes.current.background;
-        urgentMusicRef.current.volume = 0;
-      } else {
-        backgroundMusicRef.current.volume = 0;
-        urgentMusicRef.current.volume = originalVolumes.current.urgent;
-      }
-      correctSoundRef.current.volume = originalVolumes.current.correct;
-      incorrectSoundRef.current.volume = originalVolumes.current.incorrect;
-    }
-  };
-
-  // ✅ TIMER COM CONTROLE DE MÚSICA POR VOLUME
+  // ✅ INICIAR MÚSICA DE FUNDO APENAS UMA VEZ QUANDO O JOGO COMEÇAR
   useEffect(() => {
-    if (timeLeft > 0 && !showResult && audioInitialized) {
-      const timer = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-
-      // Mudar música quando restam 18 segundos
-      if (timeLeft === 18 && !isAnswering) {
-        switchToUrgentMusic();
-      }
-
-      return () => clearInterval(timer);
-    } else if (timeLeft === 0) {
-      handleTimeUp();
+    if (!isLoading && questions.length > 0 && audioEnabled && !isMuted && !gameStarted && !isBackgroundPlaying) {
+      console.log('�� Iniciando jogo e música de fundo...');
+      setGameStarted(true);
+      playBackgroundMusic();
     }
-  }, [timeLeft, showResult, audioInitialized, isAnswering, audioMuted]);
+  }, [isLoading, questions.length, audioEnabled, isMuted, gameStarted, isBackgroundPlaying, playBackgroundMusic]);
 
-  const handleTimeUp = () => {
-    // Parar músicas e tocar som de erro
-    if (audioInitialized) {
-      backgroundMusicRef.current.volume = 0;
-      urgentMusicRef.current.volume = 0;
-      playSound(incorrectSoundRef);
-    }
+  // ✅ TIMER COM SOM DE TICK (sem afetar música de fundo)
+  useEffect(() => {
+    if (isLoading || gameEnded || showResult) return;
 
-    setShowResult(true);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        // Som de tick nos últimos 10 segundos
+        if (prev <= 10 && prev > 1) {
+          playTickSound();
+        }
+        
+        // Som de aviso nos últimos 18 segundos (uma vez)
+        if (prev === 18) {
+          playTimeWarningSound();
+        }
+        
+        if (prev <= 1) {
+          handleTimeUp();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentQuestion, gameEnded, showResult, isLoading, playTickSound, playTimeWarningSound]);
+
+  // Função quando o tempo acaba
+  const handleTimeUp = useCallback(() => {
+    if (gameEnded) return;
+    
+    console.log('⏰ Tempo esgotado!');
+    playIncorrectSound();
+    setGameEnded(true);
+    setFinalPrize(currentQuestion > 0 ? questions[currentQuestion - 1]?.value || 0 : 0);
+    
     setTimeout(() => {
-      navigate('/result', { state: { score, questionsAnswered: currentQuestion } });
+      stopBackgroundMusic(); // Parar música antes de navegar
+      navigate('/result', { 
+        state: { 
+          prize: currentQuestion > 0 ? questions[currentQuestion - 1]?.value || 0 : 0,
+          questionsAnswered: currentQuestion,
+          reason: 'timeout'
+        } 
+      });
+    }, 2000);
+  }, [currentQuestion, gameEnded, questions, navigate, playIncorrectSound, stopBackgroundMusic]);
+
+  // ✅ FUNÇÃO PARA SELECIONAR RESPOSTA COM SOM (sem afetar música de fundo)
+  const handleAnswerSelect = (answerIndex) => {
+    if (selectedAnswer !== null || gameEnded) return;
+    
+    setSelectedAnswer(answerIndex);
+    const currentQuestionData = questions[currentQuestion];
+    const correct = answerIndex === currentQuestionData.correctAnswer;
+    setIsCorrect(correct);
+    
+    // Tocar som baseado na resposta (sem parar música de fundo)
+    if (correct) {
+      playCorrectSound();
+    } else {
+      playIncorrectSound();
+    }
+    
+    setTimeout(() => {
+      if (correct) {
+        if (currentQuestion === questions.length - 1) {
+          // Última pergunta - ganhou o jogo!
+          setFinalPrize(currentQuestionData.value);
+          setGameEnded(true);
+          setTimeout(() => {
+            stopBackgroundMusic(); // Parar música antes de navegar
+            navigate('/result', { 
+              state: { 
+                prize: currentQuestionData.value,
+                questionsAnswered: currentQuestion + 1,
+                reason: 'completed'
+              } 
+            });
+          }, 2000);
+        } else {
+          // Próxima pergunta (música continua)
+          setCurrentQuestion(prev => prev + 1);
+          setSelectedAnswer(null);
+          setIsCorrect(null);
+          setTimeLeft(60);
+        }
+      } else {
+        // Resposta errada - fim de jogo
+        setFinalPrize(currentQuestion > 0 ? questions[currentQuestion - 1]?.value || 0 : 0);
+        setGameEnded(true);
+        setTimeout(() => {
+          stopBackgroundMusic(); // Parar música antes de navegar
+          navigate('/result', { 
+            state: { 
+              prize: currentQuestion > 0 ? questions[currentQuestion - 1]?.value || 0 : 0,
+              questionsAnswered: currentQuestion,
+              reason: 'wrong_answer'
+            } 
+          });
+        }, 2000);
+      }
     }, 2000);
   };
 
-  const handleAnswerSelect = (answerIndex) => {
-    if (isAnswering) return;
-
-    setSelectedAnswer(answerIndex);
-    setIsAnswering(true);
-
-    // Silenciar músicas temporariamente
-    if (audioInitialized) {
-      backgroundMusicRef.current.volume = 0;
-      urgentMusicRef.current.volume = 0;
+  // Função para desistir
+  const handleQuit = () => {
+    if (window.confirm('Tem certeza que deseja desistir? Você levará o prêmio atual.')) {
+      const currentPrize = currentQuestion > 0 ? questions[currentQuestion - 1]?.value || 0 : 0;
+      stopBackgroundMusic();
+      navigate('/result', { 
+        state: { 
+          prize: currentPrize,
+          questionsAnswered: currentQuestion,
+          reason: 'quit'
+        } 
+      });
     }
-
-    setTimeout(() => {
-      const isCorrect = answerIndex === questions[currentQuestion].correctAnswer;
-
-      // Tocar som de feedback
-      if (isCorrect) {
-        playSound(correctSoundRef);
-      } else {
-        playSound(incorrectSoundRef);
-      }
-
-      if (isCorrect) {
-        const newScore = questions[currentQuestion].value;
-        setScore(newScore);
-
-        setTimeout(() => {
-          if (currentQuestion < questions.length - 1) {
-            setCurrentQuestion(prev => prev + 1);
-            setTimeLeft(60);
-            setSelectedAnswer(null);
-            setIsAnswering(false);
-
-            // ✅ RETOMAR MÚSICA DE FUNDO (sempre começa normal)
-            if (audioInitialized) {
-              switchToBackgroundMusic();
-            }
-          } else {
-            navigate('/result', { state: { score: newScore, questionsAnswered: questions.length, completed: true } });
-          }
-        }, 2000);
-      } else {
-        setTimeout(() => {
-          navigate('/result', { state: { score, questionsAnswered: currentQuestion } });
-        }, 2000);
-      }
-    }, 1000);
   };
 
-  // ✅ VERIFICAR SE HÁ PERGUNTAS SUFICIENTES
+  // ✅ PROMPT DE ÁUDIO
+  const handleAudioChoice = (enable) => {
+    if (enable) {
+      enableAudio();
+    } else {
+      disableAudio();
+    }
+  };
+
+  // ✅ CLEANUP AO SAIR DO COMPONENTE
+  useEffect(() => {
+    return () => {
+      stopBackgroundMusic();
+    };
+  }, [stopBackgroundMusic]);
+
+  // Tela de loading
+  if (isLoading) {
+    return (
+      <div className="game-container">
+        <div className="loading-screen">
+          <div className="loading-content">
+            <h1 className="loading-title">PREPARANDO O JOGO</h1>
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+            </div>
+            <p className="loading-text">Carregando perguntas...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (questions.length === 0) {
     return (
       <div className="game-container">
-        <div className="no-questions-container">
-          <h2>Nenhuma pergunta encontrada!</h2>
-          <p>Configure as perguntas no painel administrativo primeiro.</p>
-          <button onClick={() => navigate('/admin')} className="admin-btn">
-            Ir para Admin
+        <div className="error-screen">
+          <h1>❌ Erro</h1>
+          <p>Nenhuma pergunta disponível!</p>
+          <button onClick={() => navigate('/')} className="back-btn">
+            🏠 Voltar ao Início
           </button>
         </div>
       </div>
@@ -294,40 +244,38 @@ const Game = () => {
   }
 
   const currentQuestionData = questions[currentQuestion];
-  const isCorrectAnswer = selectedAnswer === currentQuestionData?.correctAnswer;
+  const currentPrize = currentQuestion > 0 ? questions[currentQuestion - 1]?.value || 0 : 0;
 
   return (
     <div className="game-container">
-      {/* Prompt para Ativar Áudio */}
+      {/* ✅ PROMPT DE ÁUDIO */}
       {showAudioPrompt && (
         <div className="audio-prompt-overlay">
           <div className="audio-prompt-content">
             <div className="audio-prompt-icon">🎵</div>
-            <h2>Ativar Áudio do Jogo?</h2>
-            <p>Para uma experiência completa, ative o áudio do Show do Milhão!</p>
+            <h2>Experiência Completa</h2>
+            <p>
+              Deseja ativar os efeitos sonoros e música de fundo para uma experiência mais imersiva?
+            </p>
             <div className="audio-prompt-buttons">
-              <button
+              <button 
+                onClick={() => handleAudioChoice(true)}
                 className="audio-prompt-btn primary"
-                onClick={initializeAudio}
               >
-                🔊 Ativar Áudio
+                🔊 Sim, com áudio
               </button>
-              <button
+              <button 
+                onClick={() => handleAudioChoice(false)}
                 className="audio-prompt-btn secondary"
-                onClick={() => {
-                  setShowAudioPrompt(false);
-                  setAudioMuted(true);
-                  setAudioInitialized(true);
-                }}
               >
-                🔇 Jogar sem Áudio
+                🔇 Não, silencioso
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header com Logo UPA */}
+      {/* Header do jogo */}
       <div className="game-header">
         <div className="upa-logo-header">
           <div className="upa-main-header">
@@ -335,134 +283,198 @@ const Game = () => {
             <span className="upa-location-header">IGARASSU</span>
           </div>
         </div>
-
+        
         <div className="game-title-header">
           <h1 className="show-title-header">SHOW DO MILHÃO</h1>
           <h2 className="enfermagem-title-header">DA ENFERMAGEM</h2>
         </div>
-
-        {/* ✅ BOTÃO DE MUTE/UNMUTE DESKTOP */}
+        
         <div className="audio-controls">
-          <button
-            className={`audio-toggle-single ${!audioInitialized ? 'loading' :
-                audioMuted ? 'disabled' : 'enabled'
-              }`}
+          <button 
             onClick={toggleMute}
+            className={`audio-toggle-single ${
+              !audioEnabled ? 'loading' : 
+              isMuted ? 'disabled' : 'enabled'
+            }`}
             title={
-              !audioInitialized ? 'Clique para inicializar áudio' :
-                audioMuted ? 'Ativar áudio' : 'Mutar áudio'
+              !audioEnabled ? 'Áudio não habilitado' :
+              isMuted ? 'Ativar som' : 'Desativar som'
             }
           >
-            {!audioInitialized ? '⏳' : audioMuted ? '��' : '🔊'}
+            {!audioEnabled ? '🔇' : isMuted ? '��' : isBackgroundPlaying ? '🔊' : '🔇'}
           </button>
         </div>
       </div>
 
-      {/* ✅ BOTÃO DE MUTE/UNMUTE MOBILE */}
+      {/* Controle de áudio mobile */}
       <div className="audio-controls-mobile">
-        <button
-          className={`audio-toggle-mobile ${!audioInitialized ? 'loading' :
-              audioMuted ? 'disabled' : 'enabled'
-            }`}
+        <button 
           onClick={toggleMute}
+          className={`audio-toggle-mobile ${
+            !audioEnabled ? 'loading' : 
+            isMuted ? 'disabled' : 'enabled'
+          }`}
           title={
-            !audioInitialized ? 'Clique para inicializar áudio' :
-              audioMuted ? 'Ativar áudio' : 'Mutar áudio'
+            !audioEnabled ? 'Áudio não habilitado' :
+            isMuted ? 'Ativar som' : 'Desativar som'
           }
         >
-          {!audioInitialized ? '⏳' : audioMuted ? '🔇' : '🔊'}
+          {!audioEnabled ? '��' : isMuted ? '��' : isBackgroundPlaying ? '🔊' : '🔇'}
         </button>
       </div>
 
-      {/* Conteúdo Principal */}
+      {/* Área principal do jogo */}
       <div className="game-main-content">
+        {/* Coluna da esquerda - Pergunta e opções */}
         <div className="game-content-left">
           <div className="question-box">
             <div className="question-header">
-              <span className="question-number">Pergunta {currentQuestion + 1}/{questions.length}</span>
-              <span className="question-value">R$ {currentQuestionData?.value.toLocaleString('pt-BR')}</span>
+              <div className="question-number">
+                Pergunta {currentQuestion + 1}/10
+              </div>
+              <div className="question-value">
+                R\$ {currentQuestionData?.value.toLocaleString('pt-BR')}
+              </div>
             </div>
-
-            <h2 className="question-text">{currentQuestionData?.question}</h2>
-
+            
+            <h2 className="question-text">
+              {currentQuestionData?.question}
+            </h2>
+            
             <div className="options-container">
               {currentQuestionData?.options.map((option, index) => (
                 <div
                   key={index}
-                  className={`option-item ${selectedAnswer === index
-                      ? isCorrectAnswer
-                        ? 'correct'
+                  className={`option-item ${
+                    selectedAnswer === index 
+                      ? isCorrect 
+                        ? 'correct' 
                         : 'incorrect'
-                      : ''
-                    } ${isAnswering && index === currentQuestionData.correctAnswer
-                      ? 'show-correct'
-                      : ''
-                    }`}
+                      : selectedAnswer !== null && index === currentQuestionData.correctAnswer
+                        ? 'show-correct'
+                        : ''
+                  }`}
                   onClick={() => handleAnswerSelect(index)}
+                  style={{ 
+                    pointerEvents: selectedAnswer !== null ? 'none' : 'auto',
+                    cursor: selectedAnswer !== null ? 'default' : 'pointer'
+                  }}
                 >
-                  <span className="option-number">{index + 1}</span>
-                  <p className="option-text">{option}</p>
+                  <div className="option-number">
+                    {String.fromCharCode(65 + index)}
+                  </div>
+                  <div className="option-text">{option}</div>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
+        {/* Coluna da direita - Sidebar */}
         <div className="game-sidebar-right">
+          {/* Imagem da pergunta - só mostra se existir e carregar */}
           {currentQuestionData?.image && (
             <div className="question-image-container">
-              <img
-                src={currentQuestionData.image}
-                alt={`Ilustração da pergunta ${currentQuestion + 1}`}
+              <img 
+                src={currentQuestionData.image} 
+                alt={`Ilustração da pergunta ${currentQuestion + 1}`} 
                 className="question-image"
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.parentElement.style.display = 'none';
                 }}
+                onLoad={(e) => {
+                  e.target.style.display = 'block';
+                  e.target.parentElement.style.display = 'block';
+                }}
               />
             </div>
           )}
-
+          
+          {/* Prêmio atual */}
           <div className="score-box">
-            <div className="score-label">PRÊMIO ATUAL</div>
-            <div className="score-value">
-              R$ {score.toLocaleString('pt-BR')}
-            </div>
+            <div className="score-label">Prêmio Atual</div>
+            <div className="score-value">R\$ {currentPrize.toLocaleString('pt-BR')}</div>
           </div>
-
+          
+          {/* Timer */}
           <div className="timer-box">
-            <div className="timer-label">CRONÔMETRO</div>
+            <div className="timer-label">Tempo Restante</div>
             <div className={`timer-display ${timeLeft <= 18 ? 'warning' : ''}`}>
-              {timeLeft < 10 ? `0${timeLeft}` : timeLeft}
+              {timeLeft}s
             </div>
           </div>
 
+          {/* Escala de prêmios */}
           <div className="prize-ladder">
-            <div className="ladder-title">PRÊMIOS</div>
-            {prizeValues.slice().reverse().map((value, index) => (
-              <div
-                key={index}
-                className={`ladder-item ${score >= value ? 'achieved' : ''
-                  } ${currentQuestionData?.value === value ? 'current' : ''
+            <div className="ladder-title">🏆 Prêmios</div>
+            {questions.slice().reverse().map((q, index) => {
+              const questionNumber = questions.length - index;
+              const isCurrentQuestion = questionNumber === currentQuestion + 1;
+              const isCompleted = questionNumber <= currentQuestion;
+              
+              return (
+                <div 
+                  key={q.id} 
+                  className={`ladder-item ${
+                    isCurrentQuestion ? 'current' : 
+                    isCompleted ? 'achieved' : ''
                   }`}
-              >
-                <span className="ladder-number">{10 - index}</span>
-                <span className="ladder-value">R$ {value.toLocaleString('pt-BR')}</span>
-              </div>
-            ))}
+                >
+                  <span className="ladder-number">{questionNumber}</span>
+                  <span className="ladder-value">
+                    R\$ {q.value.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {showResult && (
+      {/* Feedback visual quando responde */}
+      {selectedAnswer !== null && (
         <div className="result-overlay">
           <div className="result-content">
-            <h2>Tempo Esgotado!</h2>
-            <p>Redirecionando para o resultado...</p>
-            <div className="loading-spinner"></div>
+            {isCorrect ? (
+              <>
+                <h2>✅ Correto!</h2>
+                <p>Você ganhou R\$ {currentQuestionData?.value.toLocaleString('pt-BR')}!</p>
+                <div className="loading-spinner"></div>
+              </>
+            ) : (
+              <>
+                <h2>❌ Resposta Incorreta!</h2>
+                <p>Você leva R\$ {currentPrize.toLocaleString('pt-BR')}</p>
+                <div className="loading-spinner"></div>
+              </>
+            )}
           </div>
         </div>
       )}
+
+      {/* Botão de desistir (mobile) */}
+      <button 
+        onClick={handleQuit} 
+        className="quit-btn-mobile"
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(220, 38, 38, 0.9)',
+          color: 'white',
+          border: 'none',
+          padding: '10px 20px',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '1rem',
+          zIndex: 999,
+          display: window.innerWidth <= 768 ? 'block' : 'none'
+        }}
+      >
+        🚪 Desistir
+      </button>
     </div>
   );
 };

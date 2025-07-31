@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Admin.css';
+import { initializeDefaultQuestions, resetToDefaultQuestions } from '../../utils/defaultQuestions';
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -23,17 +24,18 @@ const Admin = () => {
   // Valores dos prêmios
   const prizeValues = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
 
-  // Carregar perguntas do localStorage
+  // ✅ CARREGAR PERGUNTAS COM INICIALIZAÇÃO AUTOMÁTICA
   useEffect(() => {
-    const savedQuestions = localStorage.getItem('quiz-questions');
-    if (savedQuestions) {
-      try {
-        const parsed = JSON.parse(savedQuestions);
-        console.log('📊 Perguntas carregadas do localStorage:', parsed.length);
-        setQuestions(parsed);
-      } catch (error) {
-        console.error('❌ Erro ao carregar perguntas do localStorage:', error);
-      }
+    try {
+      console.log('🔄 Inicializando admin com perguntas padrão...');
+      
+      // Garantir que as perguntas padrão estejam sempre disponíveis
+      const loadedQuestions = initializeDefaultQuestions();
+      setQuestions(loadedQuestions);
+      
+      console.log('✅ Admin inicializado com', loadedQuestions.length, 'perguntas');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar admin:', error);
     }
     
     // Verificar autenticação
@@ -53,7 +55,7 @@ const Admin = () => {
       console.log('💾 Dados salvos no localStorage');
       
       setQuestions(updatedQuestions);
-      console.log('�� Estado atualizado');
+      console.log('💾 Estado atualizado');
       
       // Verificar se realmente foi salvo
       const saved = localStorage.getItem('quiz-questions');
@@ -69,7 +71,7 @@ const Admin = () => {
 
   // Autenticação simples
   const handleLogin = () => {
-    if (password === 'upa') {
+    if (password === 'upa2024admin') {
       setIsAuthenticated(true);
       sessionStorage.setItem('admin-authenticated', 'true');
       setPassword('');
@@ -88,6 +90,11 @@ const Admin = () => {
     if (!currentQuestion.question.trim() || 
         currentQuestion.options.some(opt => !opt.trim())) {
       alert('Por favor, preencha todos os campos obrigatórios!');
+      return;
+    }
+
+    if (questions.length >= 10) {
+      alert('Máximo de 10 perguntas permitido!');
       return;
     }
 
@@ -140,6 +147,7 @@ const Admin = () => {
   const handleDeleteQuestion = (id) => {
     if (window.confirm('Tem certeza que deseja deletar esta pergunta?')) {
       const updatedQuestions = questions.filter(q => q.id !== id);
+      
       // Reajustar valores dos prêmios
       const revaluedQuestions = updatedQuestions.map((q, index) => ({
         ...q,
@@ -190,6 +198,11 @@ const Admin = () => {
 
   // Exportar perguntas
   const exportQuestions = () => {
+    if (questions.length === 0) {
+      alert('Nenhuma pergunta para exportar!');
+      return;
+    }
+
     const exportData = {
       questions: questions,
       metadata: {
@@ -214,6 +227,8 @@ const Admin = () => {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
+    
+    alert(`Arquivo ${exportFileDefaultName} baixado com sucesso!`);
   };
 
   // ✅ FUNÇÃO PARA VALIDAR PERGUNTAS IMPORTADAS (COM LOGS)
@@ -281,7 +296,7 @@ const Admin = () => {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          console.log('📖 Conteúdo bruto do arquivo:', e.target.result);
+          console.log('📖 Conteúdo bruto do arquivo (primeiros 200 chars):', e.target.result.substring(0, 200));
           
           const fileContent = JSON.parse(e.target.result);
           console.log('🔍 Conteúdo parseado:', fileContent);
@@ -297,12 +312,14 @@ const Admin = () => {
             importedQuestions = fileContent.questions;
           } else {
             console.error('❌ Formato inválido:', fileContent);
-            alert('Formato de arquivo inválido! O arquivo deve conter um array de perguntas.');
+            alert('Formato de arquivo inválido! O arquivo deve conter um array de perguntas ou um objeto com propriedade "questions".');
             return;
           }
 
           console.log('📊 Perguntas encontradas:', importedQuestions.length);
-          console.log('📝 Primeira pergunta:', importedQuestions[0]);
+          if (importedQuestions.length > 0) {
+            console.log('📝 Primeira pergunta:', importedQuestions[0]);
+          }
 
           // ✅ VALIDAR ESTRUTURA DAS PERGUNTAS
           const validation = validateImportedQuestions(importedQuestions);
@@ -318,7 +335,8 @@ const Admin = () => {
           const processedQuestions = importedQuestions.map((q, index) => ({
             ...q,
             id: Date.now() + index, // Novo ID único
-            value: prizeValues[index] || 1000000 // Valor baseado na posição
+            value: prizeValues[index] || 1000000, // Valor baseado na posição
+            image: q.image || '' // Garantir que image existe
           }));
 
           console.log('🔄 Perguntas processadas:', processedQuestions);
@@ -341,7 +359,7 @@ const Admin = () => {
           
         } catch (error) {
           console.error('❌ Erro ao processar arquivo:', error);
-          alert(`Erro ao processar arquivo: ${error.message}`);
+          alert(`Erro ao processar arquivo: ${error.message}\n\nVerifique se o arquivo é um JSON válido.`);
         }
       };
       
@@ -357,37 +375,32 @@ const Admin = () => {
     }
   };
 
-  // ✅ CARREGAR PERGUNTAS PADRÃO
-  const loadDefaultQuestions = async () => {
+  // ✅ CARREGAR PERGUNTAS PADRÃO (ATUALIZADO)
+  const loadDefaultQuestions = () => {
     if (window.confirm('Isso substituirá todas as perguntas atuais pelas perguntas padrão. Continuar?')) {
       try {
         console.log('🔄 Carregando perguntas padrão...');
-        const response = await fetch('/data/questions.json');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const defaultQuestions = await response.json();
-        console.log('📊 Perguntas padrão carregadas:', defaultQuestions);
-        
-        // Reajustar valores
-        const processedQuestions = defaultQuestions.map((q, index) => ({
-          ...q,
-          id: Date.now() + index,
-          value: prizeValues[index] || 1000000
-        }));
-        
-        const saved = saveQuestions(processedQuestions);
-        
-        if (saved) {
-          alert('Perguntas padrão carregadas com sucesso!');
-        } else {
-          alert('Erro ao salvar perguntas padrão!');
-        }
+        const defaultQuestions = resetToDefaultQuestions();
+        setQuestions(defaultQuestions);
+        alert(`${defaultQuestions.length} perguntas padrão carregadas com sucesso!`);
       } catch (error) {
         console.error('❌ Erro ao carregar perguntas padrão:', error);
         alert(`Erro ao carregar perguntas padrão: ${error.message}`);
+      }
+    }
+  };
+
+  // ✅ CARREGAR PERGUNTAS HARDCODED DIRETAMENTE
+  const loadHardcodedQuestions = () => {
+    if (window.confirm('Isso substituirá todas as perguntas atuais pelas perguntas padrão (método direto). Continuar?')) {
+      try {
+        console.log('📋 Carregando perguntas hardcoded...');
+        const defaultQuestions = resetToDefaultQuestions();
+        setQuestions(defaultQuestions);
+        alert(`${defaultQuestions.length} perguntas padrão carregadas com sucesso!`);
+      } catch (error) {
+        console.error('❌ Erro ao carregar perguntas hardcoded:', error);
+        alert(`Erro: ${error.message}`);
       }
     }
   };
@@ -449,6 +462,9 @@ const Admin = () => {
             <button onClick={handleLogin} className="login-btn">
               🔐 Entrar
             </button>
+            <div className="login-hint">
+              <small>💡 Dica: A senha padrão é "upa2024admin"</small>
+            </div>
           </div>
         </div>
       </div>
@@ -480,6 +496,9 @@ const Admin = () => {
           <button onClick={() => navigate('/game')} className="play-btn">
             🎮 Jogar
           </button>
+          <button onClick={() => navigate('/')} className="home-btn">
+            🏠 Início
+          </button>
           <button onClick={handleLogout} className="logout-btn">
             🚪 Sair
           </button>
@@ -502,78 +521,98 @@ const Admin = () => {
               <button 
                 onClick={() => document.getElementById('import-file').click()}
                 className="import-btn"
-                title="Importar perguntas"
+                title="Importar perguntas de arquivo JSON"
               >
                 📥
               </button>
               <button 
                 onClick={exportQuestions}
                 className="export-btn"
-                title="Exportar perguntas"
+                title="Exportar perguntas para arquivo JSON"
+                disabled={questions.length === 0}
               >
                 📤
               </button>
               <button 
                 onClick={loadDefaultQuestions}
                 className="default-btn"
-                title="Carregar perguntas padrão"
+                title="Carregar perguntas padrão (substitui todas)"
               >
                 🔄
               </button>
               <button 
+                onClick={loadHardcodedQuestions}
+                className="hardcoded-btn"
+                title="Carregar perguntas padrão (método direto)"
+              >
+                📋
+              </button>
+              <button 
                 onClick={testDirectSave}
                 className="test-btn"
-                title="Teste direto (debug)"
+                title="Teste direto (debug) - adiciona 2 perguntas de exemplo"
               >
-                ��
+                🧪
               </button>
             </div>
           </div>
           
           <div className="questions-list">
-            {questions.map((q, index) => (
-              <div key={q.id} className="question-item">
-                <div className="question-info">
-                  <span className="question-number">#{index + 1}</span>
-                  <span className="question-value">R$ {q.value.toLocaleString('pt-BR')}</span>
-                </div>
-                <div className="question-preview">
-                  {q.question.substring(0, 50)}...
-                </div>
-                <div className="question-actions">
-                  <button 
-                    onClick={() => moveQuestion(index, 'up')}
-                    disabled={index === 0}
-                    className="move-btn"
-                    title="Mover para cima"
-                  >
-                    ⬆️
-                  </button>
-                  <button 
-                    onClick={() => moveQuestion(index, 'down')}
-                    disabled={index === questions.length - 1}
-                    className="move-btn"
-                    title="Mover para baixo"
-                  >
-                    ⬇️
-                  </button>
-                  <button 
-                    onClick={() => handleEditQuestion(q)}
-                    className="edit-btn"
-                    title="Editar"
-                  >
-                    ✏️
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteQuestion(q.id)}
-                    className="delete-btn"
-                    title="Deletar"
-                  >
-                    🗑️
-                  </button>
-                </div>
+            {questions.length === 0 ? (
+              <div className="no-questions-sidebar">
+                <p>Nenhuma pergunta cadastrada</p>
+                <button 
+                  onClick={loadDefaultQuestions}
+                  className="load-default-small"
+                >
+                  🔄 Carregar Padrão
+                </button>
               </div>
-            ))}
+            ) : (
+              questions.map((q, index) => (
+                <div key={q.id} className="question-item">
+                  <div className="question-info">
+                    <span className="question-number">#{index + 1}</span>
+                    <span className="question-value">R$ {q.value.toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="question-preview">
+                    {q.question.length > 50 ? `${q.question.substring(0, 50)}...` : q.question}
+                  </div>
+                  <div className="question-actions">
+                    <button 
+                      onClick={() => moveQuestion(index, 'up')}
+                      disabled={index === 0}
+                      className="move-btn"
+                      title="Mover para cima"
+                    >
+                      ⬆️
+                    </button>
+                    <button 
+                      onClick={() => moveQuestion(index, 'down')}
+                      disabled={index === questions.length - 1}
+                      className="move-btn"
+                      title="Mover para baixo"
+                    >
+                      ⬇️
+                    </button>
+                    <button 
+                      onClick={() => handleEditQuestion(q)}
+                      className="edit-btn"
+                      title="Editar pergunta"
+                    >
+                      ✏️
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteQuestion(q.id)}
+                      className="delete-btn"
+                      title="Deletar pergunta"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -582,30 +621,42 @@ const Admin = () => {
           {showPreview ? (
             /* Modo Preview */
             <div className="preview-container">
-              <h3>Visualização do Quiz</h3>
+              <h3>👁️ Visualização do Quiz</h3>
               {questions.length === 0 ? (
                 <div className="no-questions">
-                  <p>Nenhuma pergunta cadastrada ainda.</p>
-                  <button onClick={() => setShowPreview(false)} className="add-first-btn">
-                    ➕ Adicionar Primeira Pergunta
-                  </button>
+                  <div className="no-questions-icon">📝</div>
+                  <h4>Nenhuma pergunta cadastrada</h4>
+                  <p>Comece adicionando perguntas ou carregue as perguntas padrão.</p>
+                  <div className="no-questions-actions">
+                    <button onClick={() => setShowPreview(false)} className="add-first-btn">
+                      ➕ Adicionar Primeira Pergunta
+                    </button>
+                    <button onClick={loadDefaultQuestions} className="load-default-btn">
+                      🔄 Carregar Perguntas Padrão
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="preview-questions">
                   {questions.map((q, index) => (
                     <div key={q.id} className="preview-question">
                       <div className="preview-header">
-                        <span>Pergunta {index + 1}/10</span>
-                        <span>R$ {q.value.toLocaleString('pt-BR')}</span>
+                        <span className="preview-number">Pergunta {index + 1}/10</span>
+                        <span className="preview-value">R$ {q.value.toLocaleString('pt-BR')}</span>
                       </div>
-                      <h4>{q.question}</h4>
+                      <h4 className="preview-question-text">{q.question}</h4>
+                      {q.image && (
+                        <div className="preview-image">
+                          <img src={q.image} alt="Imagem da pergunta" />
+                        </div>
+                      )}
                       <div className="preview-options">
                         {q.options.map((option, optIndex) => (
                           <div 
                             key={optIndex} 
                             className={`preview-option ${optIndex === q.correctAnswer ? 'correct' : ''}`}
                           >
-                            <span className="option-number">{optIndex + 1}</span>
+                            <span className="option-letter">{String.fromCharCode(65 + optIndex)}</span>
                             <span className="option-text">{option}</span>
                             {optIndex === q.correctAnswer && <span className="correct-indicator">✅</span>}
                           </div>
@@ -619,11 +670,12 @@ const Admin = () => {
           ) : (
             /* Modo Edição */
             <div className="form-container">
-              <h3>{isEditing ? 'Editar Pergunta' : 'Nova Pergunta'}</h3>
+              <h3>{isEditing ? '✏️ Editar Pergunta' : '➕ Nova Pergunta'}</h3>
               
               <div className="form-group">
-                <label>Pergunta *</label>
+                <label htmlFor="question-input">Pergunta *</label>
                 <textarea
+                  id="question-input"
                   value={currentQuestion.question}
                   onChange={(e) => setCurrentQuestion({
                     ...currentQuestion,
@@ -632,14 +684,18 @@ const Admin = () => {
                   placeholder="Digite a pergunta aqui..."
                   className="question-textarea"
                   rows="3"
+                  maxLength="500"
                 />
+                <small className="char-counter">
+                  {currentQuestion.question.length}/500 caracteres
+                </small>
               </div>
 
               <div className="form-group">
                 <label>Opções de Resposta *</label>
                 {currentQuestion.options.map((option, index) => (
                   <div key={index} className="option-input-group">
-                    <span className="option-label">Opção {index + 1}:</span>
+                    <span className="option-label">Opção {String.fromCharCode(65 + index)}:</span>
                     <input
                       type="text"
                       value={option}
@@ -651,27 +707,31 @@ const Admin = () => {
                           options: newOptions
                         });
                       }}
-                      placeholder={`Digite a opção ${index + 1}...`}
+                      placeholder={`Digite a opção ${String.fromCharCode(65 + index)}...`}
                       className="option-input"
+                      maxLength="200"
                     />
-                    <input
-                      type="radio"
-                      name="correctAnswer"
-                      checked={currentQuestion.correctAnswer === index}
-                      onChange={() => setCurrentQuestion({
-                        ...currentQuestion,
-                        correctAnswer: index
-                      })}
-                      className="correct-radio"
-                    />
-                    <label className="radio-label">Correta</label>
+                    <label className="radio-container">
+                      <input
+                        type="radio"
+                        name="correctAnswer"
+                        checked={currentQuestion.correctAnswer === index}
+                        onChange={() => setCurrentQuestion({
+                          ...currentQuestion,
+                          correctAnswer: index
+                        })}
+                        className="correct-radio"
+                      />
+                      <span className="radio-label">Correta</span>
+                    </label>
                   </div>
                 ))}
               </div>
 
               <div className="form-group">
-                <label>URL da Imagem (opcional)</label>
+                <label htmlFor="image-input">URL da Imagem (opcional)</label>
                 <input
+                  id="image-input"
                   type="url"
                   value={currentQuestion.image}
                   onChange={(e) => setCurrentQuestion({
@@ -685,11 +745,19 @@ const Admin = () => {
                   <div className="image-preview">
                     <img 
                       src={currentQuestion.image} 
-                      alt="Preview" 
+                      alt="Preview da imagem" 
                       onError={(e) => {
                         e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'block';
+                      }}
+                      onLoad={(e) => {
+                        e.target.style.display = 'block';
+                        e.target.nextSibling.style.display = 'none';
                       }}
                     />
+                    <div className="image-error" style={{ display: 'none' }}>
+                      ❌ Erro ao carregar imagem
+                    </div>
                   </div>
                 )}
               </div>
@@ -711,7 +779,7 @@ const Admin = () => {
                       className="add-btn"
                       disabled={questions.length >= 10}
                     >
-                      ➕ Adicionar Pergunta
+                      ➕ Adicionar Pergunta ({questions.length}/10)
                     </button>
                     <button onClick={resetForm} className="clear-btn">
                       🧹 Limpar Formulário
@@ -723,6 +791,12 @@ const Admin = () => {
               {questions.length >= 10 && (
                 <div className="max-questions-warning">
                   ⚠️ Máximo de 10 perguntas atingido. Delete uma pergunta para adicionar outra.
+                </div>
+              )}
+
+              {questions.length < 10 && questions.length > 0 && (
+                <div className="questions-progress">
+                  📊 Progresso: {questions.length}/10 perguntas cadastradas
                 </div>
               )}
             </div>
